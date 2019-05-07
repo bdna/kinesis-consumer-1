@@ -3,6 +3,8 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -11,20 +13,39 @@ import (
 )
 
 type DynamoStreamsConsumerConfig struct {
-	Name      string
-	AWSConfig *aws.Config
+	Name       string
+	AWSConfig  *aws.Config
+	Logger     Logger
+	Checkpoint Checkpoint
 }
 
 type DynamoStreamsConsumer struct {
-	client dynamodbstreamsiface.DynamoDBStreamsAPI
+	client     dynamodbstreamsiface.DynamoDBStreamsAPI
+	logger     Logger
+	checkpoint Checkpoint
 }
 
 func NewDynamoStreamsConsumer(c *DynamoStreamsConsumerConfig) *DynamoStreamsConsumer {
 	client := dynamodbstreams.New(session.Must(session.NewSession(c.AWSConfig)))
-	return &DynamoStreamsConsumer{client: client}
+	d := &DynamoStreamsConsumer{
+		client:     client,
+		logger:     c.Logger,
+		checkpoint: c.Checkpoint,
+	}
+
+	if d.logger == nil {
+		d.logger = &noopLogger{
+			logger: log.New(ioutil.Discard, "", log.LstdFlags),
+		}
+	}
+
+	if d.checkpoint == nil {
+		d.checkpoint = &noopCheckpoint{}
+	}
+	return d
 }
 
-func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, fn func(*dynamodbstreams.Record) error) error {
+func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, shardIteratorType string, fn func(*dynamodbstreams.Record) error) error {
 	errc := make(chan error, 1)
 	shardc := make(chan *dynamodbstreams.Shard, 1)
 	broker := newDynamoStreamsBroker(d.client, arn, shardc)
@@ -39,13 +60,11 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, fn func(*d
 		close(shardc)
 	}()
 
-	shardIteratorType := `TRIM_HORIZON`
-
 	for shard := range shardc {
 		go func(shardID string) {
 			if err := d.scanShard(ctx, arn, shardID, shardIteratorType, fn); err != nil {
 				select {
-				case errc <- fmt.Errorf(`shard %s has error: %v`, shardID, err):
+				case errc <- fmt.Errorf("shard %s has error: %v", shardID, err):
 					cancel()
 				}
 			}
@@ -62,7 +81,7 @@ func (d *DynamoStreamsConsumer) getStreamArn(streamName string) (string, error) 
 		TableName: aws.String(streamName),
 	})
 	if err != nil {
-		return ``, fmt.Errorf(`couldn't get arn for stream %q: %s`, streamName, err)
+		return ``, fmt.Errorf("couldn't get arn for stream %q: %s", streamName, err)
 	}
 
 	// We should only get one stream back for our stream name which means we should
@@ -90,13 +109,30 @@ func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, shardIteratorType
 }
 
 func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, shardIteratorType string, fn func(*dynamodbstreams.Record) error) error {
-	lastSeqNum := ``
+	lastSeqNum, err := d.checkpoint.Get(arn, shardID)
+	if err != nil {
+		return fmt.Errorf("get checkpoint error: %v", err)
+	}
 
 	shardIterator, err := d.getShardIterator(arn, shardID, shardIteratorType, lastSeqNum)
 	if err != nil {
-		fmt.Println(`shit: `, err)
-		return err
+		return fmt.Errorf("get shard iterator error: %v", err)
 	}
+
+	d.logger.Log("[START]\t", map[string]interface{}{
+		"arn":                  arn,
+		"shard_id":             shardID,
+		"shard_iterator_type":  shardIteratorType,
+		"last_sequence_number": lastSeqNum,
+	})
+	defer func() {
+		d.logger.Log("[STOP]\t", map[string]interface{}{
+			"arn":                  arn,
+			"shard_id":             shardID,
+			"shard_iterator_type":  shardIteratorType,
+			"last_sequence_number": lastSeqNum,
+		})
+	}()
 
 	for {
 		select {
