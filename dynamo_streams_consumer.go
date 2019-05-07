@@ -76,12 +76,12 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, shardItera
 	return nil
 }
 
-func (d *DynamoStreamsConsumer) getStreamArn(streamName string) (string, error) {
+func (d *DynamoStreamsConsumer) getStreamArn(tableName string) (string, error) {
 	stream, err := d.client.ListStreams(&dynamodbstreams.ListStreamsInput{
-		TableName: aws.String(streamName),
+		TableName: aws.String(tableName),
 	})
 	if err != nil {
-		return ``, fmt.Errorf("couldn't get arn for stream %q: %s", streamName, err)
+		return ``, fmt.Errorf("couldn't get arn for stream %q: %s", tableName, err)
 	}
 
 	// We should only get one stream back for our stream name which means we should
