@@ -25,6 +25,10 @@ const (
 
 	validEventID   = "1"
 	invalidEventID = "0"
+
+	checkpointArn     = "checkpoint arn"
+	checkpointShardID = "checkpoint shardID"
+	checkpointSeqNum  = `2`
 )
 
 var dynamoRecord = &dynamodbstreams.Record{
@@ -36,8 +40,14 @@ var dynamoRecord = &dynamodbstreams.Record{
 
 type mockCheckpoint struct{}
 
-func (m *mockCheckpoint) Get(a string, b string) (string, error) { return "", nil }
 func (m *mockCheckpoint) Set(a string, b string, c string) error { return nil }
+
+func (m *mockCheckpoint) Get(arn string, shardID string) (string, error) {
+	if arn == checkpointArn && shardID == checkpointShardID {
+		return checkpointSeqNum, nil
+	}
+	return "", nil
+}
 
 type mockLogger struct{}
 
@@ -112,37 +122,76 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 		desc   string
 		config *DynamoStreamsConsumerConfig
 
-		expLogger     Logger
-		expCheckpoint Checkpoint
+		checkpointOpt    DynamoStreamOption
+		loggerOpt        DynamoStreamOption
+		shardIteratorOpt DynamoStreamOption
+		clientOpts       DynamoStreamOption
+
+		expLogger                Logger
+		expCheckpoint            Checkpoint
+		expInitShardIteratorType string
+		expClient                dynamodbstreamsiface.DynamoDBStreamsAPI
+
+		shouldErr bool
 	}{
 		{
-			desc: "When I pass a config with no logger or checkpoint then they will be assigned a default value",
+			desc: "When I pass no options to NewDynamoStreamsConsumer, then the default values will be assinged",
 			config: &DynamoStreamsConsumerConfig{
 				Name:      "test",
 				AWSConfig: &aws.Config{},
 			},
+
+			checkpointOpt:    func(*DynamoStreamsConsumer) {},
+			loggerOpt:        func(*DynamoStreamsConsumer) {},
+			shardIteratorOpt: func(*DynamoStreamsConsumer) {},
+			clientOpts:       func(*DynamoStreamsConsumer) {},
+
 			expLogger: &noopLogger{
 				logger: log.New(ioutil.Discard, "", log.LstdFlags),
 			},
-			expCheckpoint: &noopCheckpoint{},
+			expCheckpoint:            &noopCheckpoint{},
+			expInitShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
+			expClient:                &dynamodbstreams.DynamoDBStreams{},
+
+			shouldErr: false,
 		},
 		{
-			desc: "When I pass a config with a logger and checkpoint, then the passed logger and checkpoint will be assigned",
+			desc: "When I pass options to NewDynamoStreamsConsumer, then the options will be applied",
 			config: &DynamoStreamsConsumerConfig{
 				Name:       "foo",
 				AWSConfig:  &aws.Config{},
 				Logger:     &mockLogger{},
 				Checkpoint: &mockCheckpoint{},
 			},
-			expLogger:     &mockLogger{},
-			expCheckpoint: &mockCheckpoint{},
+
+			checkpointOpt:    WithDynamoStreamsCheckpoint(&mockCheckpoint{}),
+			loggerOpt:        WithDynamoStreamsLogger(&mockLogger{}),
+			shardIteratorOpt: WithDynamoStreamsShardIteratorType("foo"),
+			clientOpts:       WithDynamoStreamsClient(&mockDynamoClient{}),
+
+			expLogger:                &mockLogger{},
+			expCheckpoint:            &mockCheckpoint{},
+			expInitShardIteratorType: "foo",
+			expClient:                &mockDynamoClient{},
+
+			shouldErr: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 
-			d := NewDynamoStreamsConsumer(tc.config)
+			d, err := NewDynamoStreamsConsumer(tc.config, tc.checkpointOpt, tc.loggerOpt, tc.shardIteratorOpt, tc.clientOpts)
+
+			if tc.shouldErr {
+				if err == nil {
+					t.Errorf("expected error to not be nil but it was")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected error to be nil: got %v", err)
+				}
+			}
 
 			if reflect.TypeOf(d.logger) != reflect.TypeOf(tc.expLogger) {
 				t.Errorf("expected d.logger to be of type %T: got %T", tc.expLogger, d.logger)
@@ -150,6 +199,14 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 
 			if reflect.TypeOf(d.checkpoint) != reflect.TypeOf(tc.expCheckpoint) {
 				t.Errorf("expected d.checkpoint to be of type %T: got %T", tc.expCheckpoint, d.checkpoint)
+			}
+
+			if d.initialShardIteratorType != tc.expInitShardIteratorType {
+				t.Errorf("expected d.initialShardIteratorType to be %q: got %q", tc.expInitShardIteratorType, d.initialShardIteratorType)
+			}
+
+			if reflect.TypeOf(d.client) != reflect.TypeOf(tc.expClient) {
+				t.Errorf("expected d.client to be of type %T: got %T", tc.expClient, d.client)
 			}
 		})
 	}
@@ -397,7 +454,6 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 					t.Errorf("expected error to be nil: got %s", err)
 				}
 			}
-
 		})
 	}
 }
