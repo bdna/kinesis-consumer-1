@@ -119,8 +119,7 @@ func (m *mockDynamoClient) GetRecords(i *dynamodbstreams.GetRecordsInput) (*dyna
 
 func TestNewDynamoStreamsConsumer(t *testing.T) {
 	testCases := []struct {
-		desc   string
-		config *DynamoStreamsConsumerConfig
+		desc string
 
 		checkpointOpt    DynamoStreamOption
 		loggerOpt        DynamoStreamOption
@@ -136,10 +135,6 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 	}{
 		{
 			desc: "When I pass no options to NewDynamoStreamsConsumer, then the default values will be assinged",
-			config: &DynamoStreamsConsumerConfig{
-				Name:      "test",
-				AWSConfig: &aws.Config{},
-			},
 
 			checkpointOpt:    func(*DynamoStreamsConsumer) {},
 			loggerOpt:        func(*DynamoStreamsConsumer) {},
@@ -157,12 +152,6 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 		},
 		{
 			desc: "When I pass options to NewDynamoStreamsConsumer, then the options will be applied",
-			config: &DynamoStreamsConsumerConfig{
-				Name:       "foo",
-				AWSConfig:  &aws.Config{},
-				Logger:     &mockLogger{},
-				Checkpoint: &mockCheckpoint{},
-			},
 
 			checkpointOpt:    WithDynamoStreamsCheckpoint(&mockCheckpoint{}),
 			loggerOpt:        WithDynamoStreamsLogger(&mockLogger{}),
@@ -181,7 +170,7 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 
-			d, err := NewDynamoStreamsConsumer(tc.config, tc.checkpointOpt, tc.loggerOpt, tc.shardIteratorOpt, tc.clientOpts)
+			d, err := NewDynamoStreamsConsumer(tc.checkpointOpt, tc.loggerOpt, tc.shardIteratorOpt, tc.clientOpts)
 
 			if tc.shouldErr {
 				if err == nil {

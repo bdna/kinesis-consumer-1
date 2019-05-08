@@ -12,13 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 )
 
-type DynamoStreamsConsumerConfig struct {
-	Name       string
-	AWSConfig  *aws.Config
-	Logger     Logger
-	Checkpoint Checkpoint
-}
-
 type DynamoStreamsConsumer struct {
 	client                   dynamodbstreamsiface.DynamoDBStreamsAPI
 	initialShardIteratorType string
@@ -26,7 +19,7 @@ type DynamoStreamsConsumer struct {
 	checkpoint               Checkpoint
 }
 
-func NewDynamoStreamsConsumer(c *DynamoStreamsConsumerConfig, opts ...DynamoStreamOption) (*DynamoStreamsConsumer, error) {
+func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsumer, error) {
 	d := &DynamoStreamsConsumer{
 		initialShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
 	}
