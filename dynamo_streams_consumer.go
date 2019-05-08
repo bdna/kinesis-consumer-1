@@ -49,7 +49,7 @@ func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsume
 	return d, nil
 }
 
-func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, shardIteratorType string, fn func(*dynamodbstreams.Record) error) error {
+func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, fn func(*dynamodbstreams.Record) error) error {
 	errc := make(chan error, 1)
 	shardc := make(chan *dynamodbstreams.Shard, 1)
 	broker := newDynamoStreamsBroker(d.client, arn, shardc)
@@ -66,7 +66,7 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, shardItera
 
 	for shard := range shardc {
 		go func(shardID string) {
-			if err := d.scanShard(ctx, arn, shardID, shardIteratorType, fn); err != nil {
+			if err := d.scanShard(ctx, arn, shardID, fn); err != nil {
 				select {
 				case errc <- fmt.Errorf("shard %s has error: %v", shardID, err):
 					cancel()
@@ -76,8 +76,6 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, shardItera
 	}
 	close(errc)
 	return <-errc
-
-	return nil
 }
 
 func (d *DynamoStreamsConsumer) getStreamArn(tableName string) (string, error) {
@@ -93,16 +91,17 @@ func (d *DynamoStreamsConsumer) getStreamArn(tableName string) (string, error) {
 	return *stream.Streams[0].StreamArn, nil
 }
 
-func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, shardIteratorType, seqNum string) (string, error) {
+func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, seqNum string) (string, error) {
 	input := &dynamodbstreams.GetShardIteratorInput{
-		ShardId:           aws.String(shardID),
-		ShardIteratorType: aws.String(shardIteratorType),
-		StreamArn:         aws.String(arn),
+		ShardId:   aws.String(shardID),
+		StreamArn: aws.String(arn),
 	}
 
-	if seqNum != `` {
+	if seqNum != "" {
 		input.ShardIteratorType = aws.String(dynamodbstreams.ShardIteratorTypeAfterSequenceNumber)
 		input.SequenceNumber = aws.String(seqNum)
+	} else {
+		input.ShardIteratorType = aws.String(d.initialShardIteratorType)
 	}
 
 	res, err := d.client.GetShardIterator(input)
@@ -112,13 +111,13 @@ func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, shardIteratorType
 	return *res.ShardIterator, nil
 }
 
-func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, shardIteratorType string, fn func(*dynamodbstreams.Record) error) error {
+func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID string, fn func(*dynamodbstreams.Record) error) error {
 	lastSeqNum, err := d.checkpoint.Get(arn, shardID)
 	if err != nil {
 		return fmt.Errorf("get checkpoint error: %v", err)
 	}
 
-	shardIterator, err := d.getShardIterator(arn, shardID, shardIteratorType, lastSeqNum)
+	shardIterator, err := d.getShardIterator(arn, shardID, lastSeqNum)
 	if err != nil {
 		return fmt.Errorf("get shard iterator error: %v", err)
 	}
@@ -126,14 +125,12 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, sha
 	d.logger.Log("[START]\t", map[string]interface{}{
 		"arn":                  arn,
 		"shard_id":             shardID,
-		"shard_iterator_type":  shardIteratorType,
 		"last_sequence_number": lastSeqNum,
 	})
 	defer func() {
 		d.logger.Log("[STOP]\t", map[string]interface{}{
 			"arn":                  arn,
 			"shard_id":             shardID,
-			"shard_iterator_type":  shardIteratorType,
 			"last_sequence_number": lastSeqNum,
 		})
 	}()
@@ -159,10 +156,19 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, sha
 					if err != nil {
 						return err
 					}
-
+					lastSeqNum = *r.Dynamodb.SequenceNumber
 				}
+			}
+
+			if shardClosed(resp.NextShardIterator, &shardIterator) {
+				d.logger.Log("[CLOSED]\t", shardID)
+				return nil
 			}
 			shardIterator = *resp.NextShardIterator
 		}
 	}
+}
+
+func shardClosed(nextShardIterator, currentShardIterator *string) bool {
+	return nextShardIterator == nil || currentShardIterator == nextShardIterator
 }
