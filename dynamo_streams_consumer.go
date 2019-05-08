@@ -20,17 +20,27 @@ type DynamoStreamsConsumerConfig struct {
 }
 
 type DynamoStreamsConsumer struct {
-	client     dynamodbstreamsiface.DynamoDBStreamsAPI
-	logger     Logger
-	checkpoint Checkpoint
+	client                   dynamodbstreamsiface.DynamoDBStreamsAPI
+	initialShardIteratorType string
+	logger                   Logger
+	checkpoint               Checkpoint
 }
 
-func NewDynamoStreamsConsumer(c *DynamoStreamsConsumerConfig) *DynamoStreamsConsumer {
-	client := dynamodbstreams.New(session.Must(session.NewSession(c.AWSConfig)))
+func NewDynamoStreamsConsumer(c *DynamoStreamsConsumerConfig, opts ...DynamoStreamOption) (*DynamoStreamsConsumer, error) {
 	d := &DynamoStreamsConsumer{
-		client:     client,
-		logger:     c.Logger,
-		checkpoint: c.Checkpoint,
+		initialShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
+	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	if d.client == nil {
+		sess, err := session.NewSession(aws.NewConfig())
+		if err != nil {
+			return &DynamoStreamsConsumer{}, err
+		}
+		d.client = dynamodbstreams.New(sess)
 	}
 
 	if d.logger == nil {
@@ -42,7 +52,8 @@ func NewDynamoStreamsConsumer(c *DynamoStreamsConsumerConfig) *DynamoStreamsCons
 	if d.checkpoint == nil {
 		d.checkpoint = &noopCheckpoint{}
 	}
-	return d
+
+	return d, nil
 }
 
 func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, shardIteratorType string, fn func(*dynamodbstreams.Record) error) error {
