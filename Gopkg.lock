@@ -13,7 +13,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:430a0049ba9e5652a778f1bb2a755b456ef8de588d94093f0b02a63cb885fbca"
+  digest = "1:22fb452c5e9e39f1312c82370e4b412d6809122aa885bbe298a67b0bef2d4ece"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -47,6 +47,8 @@
     "service/dynamodb",
     "service/dynamodb/dynamodbattribute",
     "service/dynamodb/dynamodbiface",
+    "service/dynamodbstreams",
+    "service/dynamodbstreams/dynamodbstreamsiface",
     "service/kinesis",
     "service/kinesis/kinesisiface",
     "service/sts",
@@ -62,6 +64,28 @@
   pruneopts = "UT"
   revision = "358ee7663966325963d4e8b2e1fbd570c5195153"
   version = "v1.38.1"
+
+[[projects]]
+  digest = "1:ec6f9bf5e274c833c911923c9193867f3f18788c461f76f05f62bb1510e0ae65"
+  name = "github.com/go-sql-driver/mysql"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "72cd26f257d44c1114970e19afddcd812016007e"
+  version = "v1.4.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:6f0714d792b1463bbeaec58a1b4372101951b96508cd794bf98332786eb445d3"
+  name = "github.com/harlow/kinesis-consumer"
+  packages = [
+    ".",
+    "checkpoint/ddb",
+    "checkpoint/mysql",
+    "checkpoint/postgres",
+    "checkpoint/redis",
+  ]
+  pruneopts = "UT"
+  revision = "8493100b85511119090ed3a0d39a3b043a69ebdf"
 
 [[projects]]
   digest = "1:e22af8c7518e1eab6f2eab2b7d7558927f816262586cd6ed9f349c97a6c285c4"
@@ -88,6 +112,14 @@
   pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
+
+[[projects]]
+  digest = "1:c25289f43ac4a68d88b02245742347c94f1e108c534dda442188015ff80669b3"
+  name = "google.golang.org/appengine"
+  packages = ["cloudsql"]
+  pruneopts = "UT"
+  revision = "54a98f90d1c46b7731eb8fb305d2a321c30ef610"
+  version = "v1.5.0"
 
 [[projects]]
   digest = "1:04aea75705cb453e24bf8c1506a24a5a9036537dbc61ddf71d20900d6c7c3ab9"
@@ -124,8 +156,16 @@
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute",
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface",
+    "github.com/aws/aws-sdk-go/service/dynamodbstreams",
+    "github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface",
     "github.com/aws/aws-sdk-go/service/kinesis",
     "github.com/aws/aws-sdk-go/service/kinesis/kinesisiface",
+    "github.com/go-sql-driver/mysql",
+    "github.com/harlow/kinesis-consumer",
+    "github.com/harlow/kinesis-consumer/checkpoint/ddb",
+    "github.com/harlow/kinesis-consumer/checkpoint/mysql",
+    "github.com/harlow/kinesis-consumer/checkpoint/postgres",
+    "github.com/harlow/kinesis-consumer/checkpoint/redis",
     "github.com/lib/pq",
     "github.com/pkg/errors",
     "gopkg.in/DATA-DOG/go-sqlmock.v1",
