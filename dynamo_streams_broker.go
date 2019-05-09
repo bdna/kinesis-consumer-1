@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 )
 
+// dynamoStreamsBroker caches a local list of shards that we're already processing
+// and polls the stream every 30 seconds for new shards
 type dynamoStreamsBroker struct {
 	client    dynamodbstreamsiface.DynamoDBStreamsAPI
 	streamArn string
@@ -20,10 +22,8 @@ type dynamoStreamsBroker struct {
 	shards  map[string]*dynamodbstreams.Shard
 }
 
-func newDynamoStreamsBroker(c dynamodbstreamsiface.DynamoDBStreamsAPI,
-	arn string,
-	shardc chan *dynamodbstreams.Shard,
-) *dynamoStreamsBroker {
+// newDynamoStreamsBroker returns a pointer to an initialisedd dynamoStreamsBroker
+func newDynamoStreamsBroker(c dynamodbstreamsiface.DynamoDBStreamsAPI, arn string, shardc chan *dynamodbstreams.Shard) *dynamoStreamsBroker {
 	return &dynamoStreamsBroker{
 		client:    c,
 		streamArn: arn,
@@ -33,6 +33,7 @@ func newDynamoStreamsBroker(c dynamodbstreamsiface.DynamoDBStreamsAPI,
 	}
 }
 
+// start polls the dynamodbstream for new shards every 30 seconds
 func (d *dynamoStreamsBroker) start(ctx context.Context) {
 	d.findNewShards()
 
@@ -57,6 +58,8 @@ func (d *dynamoStreamsBroker) start(ctx context.Context) {
 	}
 }
 
+// findNewShards pulls the list of shards from the dynamodbstreams API and
+// stores them in the brokers local cache if they don't already exist in it.
 func (d *dynamoStreamsBroker) findNewShards() {
 	d.shardMu.Lock()
 	defer d.shardMu.Unlock()
@@ -76,6 +79,7 @@ func (d *dynamoStreamsBroker) findNewShards() {
 	}
 }
 
+// listShards pulls shards for a dynanmodbstream from the dynamodbstreams API
 func (d *dynamoStreamsBroker) listShards() ([]*dynamodbstreams.Shard, error) {
 	shards := []*dynamodbstreams.Shard{}
 	input := &dynamodbstreams.DescribeStreamInput{
