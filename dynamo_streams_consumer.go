@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 )
 
+// DynamoStreamsConsumer wraps the interaction with the DynamoStream
 type DynamoStreamsConsumer struct {
 	client                   dynamodbstreamsiface.DynamoDBStreamsAPI
 	initialShardIteratorType string
@@ -19,6 +20,11 @@ type DynamoStreamsConsumer struct {
 	checkpoint               Checkpoint
 }
 
+// NewDynamoStreamsConsumer returns a pointer to a DynamoStreamsConsumer. If no
+// options are passed the DynamoStreamsConsumer is configured with default settings.
+// Use any of the DynamoStreamOption functions to override any of the default settings.
+// For example you can pass your own client that implements dynamodbstreamsiface.DynamoDBStreamsAPI
+// by calling NewDynamoStreamsConsumer(WithDynamoStreamsClient(<your client))
 func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsumer, error) {
 	d := &DynamoStreamsConsumer{
 		initialShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
@@ -49,6 +55,13 @@ func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsume
 	return d, nil
 }
 
+// Scan launches a goroutine to process each of the shards in the stream. The callback
+// function is passed to each of the goroutines and called for each message pulled from
+// the stream. The seqNum parameter is optional and if a SequenceNumber is passed then
+// Scan will start reading from that point on the stream. If you just pass an empty
+// string to seqNum then Scan will read from the DynamoStreamsConsumers initialShardIteratorType.
+// If you haven't overidden the initialShardIteratorType when calling NewDynamoStreamsConsumer
+// it will default to SHARD_ITERATOR_TYPE LATEST
 func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, seqNum string, fn func(*dynamodbstreams.Record) error) error {
 	errc := make(chan error, 1)
 	shardc := make(chan *dynamodbstreams.Shard, 1)
@@ -78,6 +91,7 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, seqNum str
 	return <-errc
 }
 
+// getStreamArn takes a table name and returns the arn of its associated dynamodbstream
 func (d *DynamoStreamsConsumer) getStreamArn(tableName string) (string, error) {
 	stream, err := d.client.ListStreams(&dynamodbstreams.ListStreamsInput{
 		TableName: aws.String(tableName),
@@ -91,6 +105,9 @@ func (d *DynamoStreamsConsumer) getStreamArn(tableName string) (string, error) {
 	return *stream.Streams[0].StreamArn, nil
 }
 
+// getShardIterator returns the shardIterator for a stream. If a sequence number is passed
+// it will return the shardIterator for that point in the stream. Otherwise it returns
+// the shardIterator for the DynamoStreamsConsumers initialShardIteratorType
 func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, seqNum string) (string, error) {
 	input := &dynamodbstreams.GetShardIteratorInput{
 		ShardId:   aws.String(shardID),
@@ -111,6 +128,13 @@ func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, seqNum string) (s
 	return *res.ShardIterator, nil
 }
 
+// ScanShard loops over the records in a specific shard and calls the callback
+// function passed to it on each record.
+//
+// The seqNum parameter is optional and if a SequenceNumber is passed then Scan
+// will start reading from that point on the stream. If you just pass an empty0 string
+// to seqNum then Scan will read from the DynamoStreamsConsumers initialShardIteratorType.
+// unless the default checkpoint was overriden when calling NewDynamoStreamsConsumer.
 func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seqNum string, fn func(*dynamodbstreams.Record) error) error {
 	lastSeqNum := ""
 	// If a sequence number has been provided use it rather than the checkpoint
@@ -176,6 +200,8 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seq
 	}
 }
 
+// shardClosed returns a boolean value that represents whether the shard
+// has been closed.
 func shardClosed(nextShardIterator, currentShardIterator *string) bool {
 	return nextShardIterator == nil || currentShardIterator == nextShardIterator
 }
