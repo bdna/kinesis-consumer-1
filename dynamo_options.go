@@ -2,8 +2,11 @@ package consumer
 
 import "github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 
+// DynamoStreamOption is used to override default values when creating a new
+// DynamoStreamsConsumer
 type DynamoStreamOption func(*DynamoStreamsConsumer)
 
+// WithCheckpoint overrides the default checkpoint
 func WithDynamoStreamsCheckpoint(checkpoint Checkpoint) DynamoStreamOption {
 	return func(d *DynamoStreamsConsumer) {
 		d.checkpoint = checkpoint
