@@ -263,7 +263,8 @@ func TestDynamoStreamsConsumer_getShardIterator(t *testing.T) {
 		{
 			desc: "Calling getShardIterator should return a ShardIterator and no error",
 			consumer: &DynamoStreamsConsumer{
-				client: &mockDynamoClient{},
+				client:                   &mockDynamoClient{},
+				initialShardIteratorType: "blah",
 			},
 			shardID:     validShardID,
 			shouldErr:   false,
@@ -281,15 +282,14 @@ func TestDynamoStreamsConsumer_getShardIterator(t *testing.T) {
 	}
 
 	const (
-		arn               = "1"
-		shardIteratorType = "blah"
-		seqNum            = "55"
+		arn    = "1"
+		seqNum = "55"
 	)
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 
-			actual, err := tc.consumer.getShardIterator(arn, tc.shardID, shardIteratorType, seqNum)
+			actual, err := tc.consumer.getShardIterator(arn, tc.shardID, seqNum)
 			if tc.shouldErr {
 				if err == nil {
 					t.Errorf("expected error to not be nil but it was")
@@ -317,9 +317,10 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 		{
 			desc: "Calling scanShard with a shardID that will not cause and error",
 			consumer: &DynamoStreamsConsumer{
-				client:     &mockDynamoClient{},
-				logger:     &mockLogger{},
-				checkpoint: &mockCheckpoint{},
+				client:                   &mockDynamoClient{},
+				logger:                   &mockLogger{},
+				checkpoint:               &mockCheckpoint{},
+				initialShardIteratorType: "blah",
 			},
 			shardID:   validShardID,
 			shouldErr: false,
@@ -327,9 +328,10 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 		{
 			desc: "Calling scanShard with a shardID that will cause an error",
 			consumer: &DynamoStreamsConsumer{
-				client:     &mockDynamoClient{},
-				logger:     &mockLogger{},
-				checkpoint: &mockCheckpoint{},
+				client:                   &mockDynamoClient{},
+				logger:                   &mockLogger{},
+				checkpoint:               &mockCheckpoint{},
+				initialShardIteratorType: "blah",
 			},
 			shardID:   "This will end badly",
 			shouldErr: true,
@@ -337,8 +339,7 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 	}
 
 	const (
-		arn               = "1"
-		shardIteratorType = "blah"
+		arn = "1"
 	)
 
 	for _, tc := range testCases {
@@ -357,7 +358,7 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 				return errors.New("unexpected error case")
 			}
 
-			err := tc.consumer.scanShard(ctx, arn, tc.shardID, shardIteratorType, callback)
+			err := tc.consumer.scanShard(ctx, arn, tc.shardID, callback)
 			if tc.shouldErr {
 				if err == nil {
 					t.Errorf(`expected error to not be nil but it was`)
@@ -389,8 +390,9 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 						},
 					},
 				},
-				logger:     &mockLogger{},
-				checkpoint: &mockCheckpoint{},
+				initialShardIteratorType: "foo",
+				logger:                   &mockLogger{},
+				checkpoint:               &mockCheckpoint{},
 			},
 			shouldErr: false,
 		},
@@ -406,16 +408,16 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 						},
 					},
 				},
-				logger:     &mockLogger{},
-				checkpoint: &mockCheckpoint{},
+				initialShardIteratorType: "foo",
+				logger:                   &mockLogger{},
+				checkpoint:               &mockCheckpoint{},
 			},
 			shouldErr: true,
 		},
 	}
 
 	const (
-		arn               = "123"
-		shardIteratorType = "foo"
+		arn = "123"
 	)
 
 	for _, tc := range testCases {
@@ -433,7 +435,7 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 				return errors.New("unexpected error case")
 			}
 
-			err := tc.consumer.Scan(ctx, arn, shardIteratorType, callback)
+			err := tc.consumer.Scan(ctx, arn, callback)
 			if tc.shouldErr {
 				if err == nil {
 					t.Errorf("expected error to not be nil but it was")
