@@ -49,7 +49,7 @@ func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsume
 	return d, nil
 }
 
-func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, fn func(*dynamodbstreams.Record) error) error {
+func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, seqNum string, fn func(*dynamodbstreams.Record) error) error {
 	errc := make(chan error, 1)
 	shardc := make(chan *dynamodbstreams.Shard, 1)
 	broker := newDynamoStreamsBroker(d.client, arn, shardc)
@@ -66,7 +66,7 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, fn func(*d
 
 	for shard := range shardc {
 		go func(shardID string) {
-			if err := d.scanShard(ctx, arn, shardID, fn); err != nil {
+			if err := d.scanShard(ctx, arn, shardID, seqNum, fn); err != nil {
 				select {
 				case errc <- fmt.Errorf("shard %s has error: %v", shardID, err):
 					cancel()
@@ -111,10 +111,17 @@ func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, seqNum string) (s
 	return *res.ShardIterator, nil
 }
 
-func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID string, fn func(*dynamodbstreams.Record) error) error {
-	lastSeqNum, err := d.checkpoint.Get(arn, shardID)
-	if err != nil {
-		return fmt.Errorf("get checkpoint error: %v", err)
+func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seqNum string, fn func(*dynamodbstreams.Record) error) error {
+	lastSeqNum := ""
+	// If a sequence number has been provided use it rather than the checkpoint
+	if seqNum == "" {
+		var err error
+		lastSeqNum, err = d.checkpoint.Get(arn, shardID)
+		if err != nil {
+			return fmt.Errorf("get checkpoint error: %v", err)
+		}
+	} else {
+		lastSeqNum = seqNum
 	}
 
 	shardIterator, err := d.getShardIterator(arn, shardID, lastSeqNum)
