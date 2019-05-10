@@ -191,17 +191,11 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seq
 				}
 			}
 
-			if shardClosed(resp.NextShardIterator, &shardIterator) {
+			if isShardClosed(resp.NextShardIterator, &shardIterator) {
 				d.logger.Log("[CLOSED]\t", shardID)
 				return nil
 			}
 			shardIterator = *resp.NextShardIterator
 		}
 	}
-}
-
-// shardClosed returns a boolean value that represents whether the shard
-// has been closed.
-func shardClosed(nextShardIterator, currentShardIterator *string) bool {
-	return nextShardIterator == nil || currentShardIterator == nextShardIterator
 }
