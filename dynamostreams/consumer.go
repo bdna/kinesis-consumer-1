@@ -1,4 +1,4 @@
-package consumer
+package dynamostreams
 
 import (
 	"context"
@@ -6,18 +6,21 @@ import (
 	"io/ioutil"
 	"log"
 
+	"github.com/bdna/kinesis-consumer-1/internal"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
+	consumer "github.com/harlow/kinesis-consumer"
 )
 
 // DynamoStreamsConsumer wraps the interaction with the DynamoStream
 type DynamoStreamsConsumer struct {
 	client                   dynamodbstreamsiface.DynamoDBStreamsAPI
 	initialShardIteratorType string
-	logger                   Logger
-	checkpoint               Checkpoint
+	logger                   consumer.Logger
+	checkpoint               consumer.Checkpoint
 }
 
 // NewDynamoStreamsConsumer returns a pointer to a DynamoStreamsConsumer. If no
@@ -25,7 +28,7 @@ type DynamoStreamsConsumer struct {
 // Use any of the DynamoStreamOption functions to override any of the default settings.
 // For example you can pass your own client that implements dynamodbstreamsiface.DynamoDBStreamsAPI
 // by calling NewDynamoStreamsConsumer(WithDynamoStreamsClient(<your client))
-func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsumer, error) {
+func NewDynamoStreamsConsumer(opts ...Option) (*DynamoStreamsConsumer, error) {
 	d := &DynamoStreamsConsumer{
 		initialShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
 	}
@@ -43,13 +46,13 @@ func NewDynamoStreamsConsumer(opts ...DynamoStreamOption) (*DynamoStreamsConsume
 	}
 
 	if d.logger == nil {
-		d.logger = &noopLogger{
-			logger: log.New(ioutil.Discard, "", log.LstdFlags),
+		d.logger = &internal.NoopLogger{
+			Logger: log.New(ioutil.Discard, "", log.LstdFlags),
 		}
 	}
 
 	if d.checkpoint == nil {
-		d.checkpoint = &noopCheckpoint{}
+		d.checkpoint = &internal.NoopCheckpoint{}
 	}
 
 	return d, nil
@@ -191,11 +194,15 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seq
 				}
 			}
 
-			if isShardClosed(resp.NextShardIterator, &shardIterator) {
+			if shardClosed(resp.NextShardIterator, &shardIterator) {
 				d.logger.Log("[CLOSED]\t", shardID)
 				return nil
 			}
 			shardIterator = *resp.NextShardIterator
 		}
 	}
+}
+
+func shardClosed(nextShardIterator, currentShardIterator *string) bool {
+	return nextShardIterator == nil || currentShardIterator == nextShardIterator
 }

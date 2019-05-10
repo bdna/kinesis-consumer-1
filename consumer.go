@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 
+	"github.com/bdna/kinesis-consumer-1/internal"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
@@ -27,10 +29,10 @@ func New(streamName string, opts ...Option) (*Consumer, error) {
 	c := &Consumer{
 		streamName:               streamName,
 		initialShardIteratorType: kinesis.ShardIteratorTypeLatest,
-		checkpoint:               &noopCheckpoint{},
+		checkpoint:               &internal.NoopCheckpoint{},
 		counter:                  &noopCounter{},
-		logger: &noopLogger{
-			logger: log.New(ioutil.Discard, "", log.LstdFlags),
+		logger: &internal.NoopLogger{
+			Logger: log.New(ioutil.Discard, "", log.LstdFlags),
 		},
 	}
 

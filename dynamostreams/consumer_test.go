@@ -1,4 +1,4 @@
-package consumer
+package dynamostreams
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
+	"github.com/bdna/kinesis-consumer-1/internal"
+	consumer "github.com/harlow/kinesis-consumer"
 )
 
 const (
@@ -130,13 +132,13 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 	testCases := []struct {
 		desc string
 
-		checkpointOpt    DynamoStreamOption
-		loggerOpt        DynamoStreamOption
-		shardIteratorOpt DynamoStreamOption
-		clientOpts       DynamoStreamOption
+		checkpointOpt    Option
+		loggerOpt        Option
+		shardIteratorOpt Option
+		clientOpts       Option
 
-		expLogger                Logger
-		expCheckpoint            Checkpoint
+		expLogger                consumer.Logger
+		expCheckpoint            consumer.Checkpoint
 		expInitShardIteratorType string
 		expClient                dynamodbstreamsiface.DynamoDBStreamsAPI
 
@@ -150,10 +152,10 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 			shardIteratorOpt: func(*DynamoStreamsConsumer) {},
 			clientOpts:       func(*DynamoStreamsConsumer) {},
 
-			expLogger: &noopLogger{
-				logger: log.New(ioutil.Discard, "", log.LstdFlags),
+			expLogger: &internal.NoopLogger{
+				Logger: log.New(ioutil.Discard, "", log.LstdFlags),
 			},
-			expCheckpoint:            &noopCheckpoint{},
+			expCheckpoint:            &internal.NoopCheckpoint{},
 			expInitShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
 			expClient:                &dynamodbstreams.DynamoDBStreams{},
 

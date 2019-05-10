@@ -1,34 +1,37 @@
-package consumer
+package dynamostreams
 
-import "github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
+import (
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
+	consumer "github.com/harlow/kinesis-consumer"
+)
 
 // DynamoStreamOption is used to override default values when creating a new
 // DynamoStreamsConsumer
-type DynamoStreamOption func(*DynamoStreamsConsumer)
+type Option func(*DynamoStreamsConsumer)
 
 // WithCheckpoint overrides the default checkpoint
-func WithDynamoStreamsCheckpoint(checkpoint Checkpoint) DynamoStreamOption {
+func WithDynamoStreamsCheckpoint(checkpoint consumer.Checkpoint) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.checkpoint = checkpoint
 	}
 }
 
 // WithLogger overrides the default logger
-func WithDynamoStreamsLogger(logger Logger) DynamoStreamOption {
+func WithDynamoStreamsLogger(logger consumer.Logger) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.logger = logger
 	}
 }
 
 // WithClient overrides the default client
-func WithDynamoStreamsClient(client dynamodbstreamsiface.DynamoDBStreamsAPI) DynamoStreamOption {
+func WithDynamoStreamsClient(client dynamodbstreamsiface.DynamoDBStreamsAPI) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.client = client
 	}
 }
 
 // ShardIteratorType overrides the starting point for the consumer
-func WithDynamoStreamsShardIteratorType(t string) DynamoStreamOption {
+func WithDynamoStreamsShardIteratorType(t string) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.initialShardIteratorType = t
 	}
