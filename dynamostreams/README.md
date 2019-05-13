@@ -36,6 +36,10 @@ func main() {
     // DynamoStreamConsumers initialShardIteratorType. If we passed a sequence
     // number in here then we could start consuming from a specifc point on the
     // stream.
+    //
+    // Passing a SequenceNumber to Scan will also set the ShardIteratorType to
+    // AFTER_SEQUENCE_NUMBER, overriding the initialShardIteratorType or any
+    // shardIteratorType passed as an option the NewDynamoStreamsConsumer.
     err = c.Scan(context.TODO(), arn, `` func(r *dynamodbstreams.Record) error {
         fmt.Println(r)
     })
@@ -119,5 +123,26 @@ import (
 c, err := dynamostreams.NewDynamoStreamsConsumer(dynamostreams.WithShardIteratorType(`TRIM_HORIZON`))
 if err != nil {
     log.Fatal("failed to create consumer: %v", err)
+}
+```
+
+### Reading from a specific record
+
+If you want to read from a specific point in the stream then you pass a sequence number when calling `Scan`. Passing a sequence number to the `Scan` method will override the ShardIteratorType to be `AFTER_SEQUENCE_NUMBER` and the consumer will start reading from the first record in the stream after this sequence number. A limitation of this implementation is that the client consuming from the stream has to keep track of the sequence number for each record they consume if they want to be able to start consuming from the same point again in the event that that the connection goes down at some point.
+
+```go
+c, err := dynamostreams.NewDynamoStreamsConsumer()
+if err != nil {
+    log.Fatal("failed to create consumer: %v", err)
+}
+
+sequenceNumber := `1234` 
+
+err = c.Scan(context.TODO(), arn, sequenceNumber func(r *dynamodbstreams.Record) error {
+    // r will be the first record in the stream with a sequence number after 1234
+    fmt.Println(r)
+})
+if err != nil {
+    log.Fatal("scan error: %v", err)
 }
 ```
