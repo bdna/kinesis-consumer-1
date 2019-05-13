@@ -138,7 +138,6 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 		clientOpts       Option
 
 		expLogger                consumer.Logger
-		expCheckpoint            consumer.Checkpoint
 		expInitShardIteratorType string
 		expClient                dynamodbstreamsiface.DynamoDBStreamsAPI
 
@@ -155,7 +154,6 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 			expLogger: &internal.NoopLogger{
 				Logger: log.New(ioutil.Discard, "", log.LstdFlags),
 			},
-			expCheckpoint:            &internal.NoopCheckpoint{},
 			expInitShardIteratorType: dynamodbstreams.ShardIteratorTypeLatest,
 			expClient:                &dynamodbstreams.DynamoDBStreams{},
 
@@ -164,13 +162,11 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 		{
 			desc: "When I pass options to NewDynamoStreamsConsumer, then the options will be applied",
 
-			checkpointOpt:    WithDynamoStreamsCheckpoint(&mockCheckpoint{}),
-			loggerOpt:        WithDynamoStreamsLogger(&mockLogger{}),
-			shardIteratorOpt: WithDynamoStreamsShardIteratorType("foo"),
-			clientOpts:       WithDynamoStreamsClient(&mockDynamoClient{}),
+			loggerOpt:        WithLogger(&mockLogger{}),
+			shardIteratorOpt: WithShardIteratorType("foo"),
+			clientOpts:       WithClient(&mockDynamoClient{}),
 
 			expLogger:                &mockLogger{},
-			expCheckpoint:            &mockCheckpoint{},
 			expInitShardIteratorType: "foo",
 			expClient:                &mockDynamoClient{},
 
@@ -181,7 +177,7 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 
-			d, err := NewDynamoStreamsConsumer(tc.checkpointOpt, tc.loggerOpt, tc.shardIteratorOpt, tc.clientOpts)
+			d, err := NewDynamoStreamsConsumer(tc.loggerOpt, tc.shardIteratorOpt, tc.clientOpts)
 
 			if tc.shouldErr {
 				if err == nil {
@@ -195,10 +191,6 @@ func TestNewDynamoStreamsConsumer(t *testing.T) {
 
 			if reflect.TypeOf(d.logger) != reflect.TypeOf(tc.expLogger) {
 				t.Errorf("expected d.logger to be of type %T: got %T", tc.expLogger, d.logger)
-			}
-
-			if reflect.TypeOf(d.checkpoint) != reflect.TypeOf(tc.expCheckpoint) {
-				t.Errorf("expected d.checkpoint to be of type %T: got %T", tc.expCheckpoint, d.checkpoint)
 			}
 
 			if d.initialShardIteratorType != tc.expInitShardIteratorType {
@@ -333,7 +325,6 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 			consumer: &DynamoStreamsConsumer{
 				client:                   &mockDynamoClient{},
 				logger:                   &mockLogger{},
-				checkpoint:               &mockCheckpoint{},
 				initialShardIteratorType: "blah",
 			},
 			shardID:   validShardID,
@@ -345,7 +336,6 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 			consumer: &DynamoStreamsConsumer{
 				client:                   &mockDynamoClient{},
 				logger:                   &mockLogger{},
-				checkpoint:               &mockCheckpoint{},
 				initialShardIteratorType: "blah",
 			},
 			shardID:   "This will end badly",
@@ -357,7 +347,6 @@ func TestDynamoStreamsConsumer_scanShard(t *testing.T) {
 			consumer: &DynamoStreamsConsumer{
 				client:                   &mockDynamoClient{},
 				logger:                   &mockLogger{},
-				checkpoint:               &mockCheckpoint{},
 				initialShardIteratorType: "blah",
 			},
 			shardID:   validShardID,
@@ -421,7 +410,6 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 				},
 				initialShardIteratorType: "foo",
 				logger:                   &mockLogger{},
-				checkpoint:               &mockCheckpoint{},
 			},
 			seqNum:    "",
 			shouldErr: false,
@@ -440,7 +428,6 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 				},
 				initialShardIteratorType: "foo",
 				logger:                   &mockLogger{},
-				checkpoint:               &mockCheckpoint{},
 			},
 			seqNum:    "",
 			shouldErr: true,
@@ -459,7 +446,6 @@ func TestDynamoStreamsConsumer_Scan(t *testing.T) {
 				},
 				initialShardIteratorType: "foo",
 				logger:                   &mockLogger{},
-				checkpoint:               &mockCheckpoint{},
 			},
 			seqNum:    "1",
 			shouldErr: false,
