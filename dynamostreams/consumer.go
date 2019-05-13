@@ -20,7 +20,6 @@ type DynamoStreamsConsumer struct {
 	client                   dynamodbstreamsiface.DynamoDBStreamsAPI
 	initialShardIteratorType string
 	logger                   consumer.Logger
-	checkpoint               consumer.Checkpoint
 }
 
 // NewDynamoStreamsConsumer returns a pointer to a DynamoStreamsConsumer. If no
@@ -49,10 +48,6 @@ func NewDynamoStreamsConsumer(opts ...Option) (*DynamoStreamsConsumer, error) {
 		d.logger = &internal.NoopLogger{
 			Logger: log.New(ioutil.Discard, "", log.LstdFlags),
 		}
-	}
-
-	if d.checkpoint == nil {
-		d.checkpoint = &internal.NoopCheckpoint{}
 	}
 
 	return d, nil
@@ -95,6 +90,10 @@ func (d *DynamoStreamsConsumer) Scan(ctx context.Context, arn string, seqNum str
 }
 
 // getStreamArn takes a table name and returns the arn of its associated dynamodbstream
+func (d *DynamoStreamsConsumer) GetStreamArn(tableName string) (string, error) {
+	return d.getStreamArn(tableName)
+}
+
 func (d *DynamoStreamsConsumer) getStreamArn(tableName string) (string, error) {
 	stream, err := d.client.ListStreams(&dynamodbstreams.ListStreamsInput{
 		TableName: aws.String(tableName),
@@ -139,19 +138,7 @@ func (d *DynamoStreamsConsumer) getShardIterator(arn, shardID, seqNum string) (s
 // to seqNum then Scan will read from the DynamoStreamsConsumers initialShardIteratorType.
 // unless the default checkpoint was overriden when calling NewDynamoStreamsConsumer.
 func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seqNum string, fn func(*dynamodbstreams.Record) error) error {
-	lastSeqNum := ""
-	// If a sequence number has been provided use it rather than the checkpoint
-	if seqNum == "" {
-		var err error
-		lastSeqNum, err = d.checkpoint.Get(arn, shardID)
-		if err != nil {
-			return fmt.Errorf("get checkpoint error: %v", err)
-		}
-	} else {
-		lastSeqNum = seqNum
-	}
-
-	shardIterator, err := d.getShardIterator(arn, shardID, lastSeqNum)
+	shardIterator, err := d.getShardIterator(arn, shardID, seqNum)
 	if err != nil {
 		return fmt.Errorf("get shard iterator error: %v", err)
 	}
@@ -159,13 +146,13 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seq
 	d.logger.Log("[START]\t", map[string]interface{}{
 		"arn":                  arn,
 		"shard_id":             shardID,
-		"last_sequence_number": lastSeqNum,
+		"last_sequence_number": seqNum,
 	})
 	defer func() {
 		d.logger.Log("[STOP]\t", map[string]interface{}{
 			"arn":                  arn,
 			"shard_id":             shardID,
-			"last_sequence_number": lastSeqNum,
+			"last_sequence_number": seqNum,
 		})
 	}()
 
@@ -190,7 +177,7 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seq
 					if err != nil {
 						return err
 					}
-					lastSeqNum = *r.Dynamodb.SequenceNumber
+					seqNum = *r.Dynamodb.SequenceNumber
 				}
 			}
 
@@ -203,6 +190,8 @@ func (d *DynamoStreamsConsumer) scanShard(ctx context.Context, arn, shardID, seq
 	}
 }
 
+// shardClosed returns a boolean value that represents whether or not the
+// shard has been closed
 func shardClosed(nextShardIterator, currentShardIterator *string) bool {
 	return nextShardIterator == nil || currentShardIterator == nextShardIterator
 }
