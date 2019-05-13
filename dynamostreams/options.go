@@ -9,29 +9,22 @@ import (
 // DynamoStreamsConsumer
 type Option func(*DynamoStreamsConsumer)
 
-// WithCheckpoint overrides the default checkpoint
-func WithDynamoStreamsCheckpoint(checkpoint consumer.Checkpoint) Option {
-	return func(d *DynamoStreamsConsumer) {
-		d.checkpoint = checkpoint
-	}
-}
-
 // WithLogger overrides the default logger
-func WithDynamoStreamsLogger(logger consumer.Logger) Option {
+func WithLogger(logger consumer.Logger) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.logger = logger
 	}
 }
 
 // WithClient overrides the default client
-func WithDynamoStreamsClient(client dynamodbstreamsiface.DynamoDBStreamsAPI) Option {
+func WithClient(client dynamodbstreamsiface.DynamoDBStreamsAPI) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.client = client
 	}
 }
 
 // ShardIteratorType overrides the starting point for the consumer
-func WithDynamoStreamsShardIteratorType(t string) Option {
+func WithShardIteratorType(t string) Option {
 	return func(d *DynamoStreamsConsumer) {
 		d.initialShardIteratorType = t
 	}
