@@ -62,7 +62,7 @@ import (
     "log"
 
     "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
+    "github.com/aws/aws-sdk-go/aws/session"
     "github.com/aws/aws-sdk-go/service/dynamodbstreams"
     
     dynamoconsumer "github.com/harlow/kinesis-consumer/dynamostreams"
@@ -82,6 +82,12 @@ if err != nil {
 You can pass your own logger to the DynamoStreamsConsumer provided it implementes the logger interface
 
 ```go
+type Logger interface {
+    Log(v ...interface{})
+}
+```
+
+```go
 import (
     "log"
     "os"
@@ -89,12 +95,6 @@ import (
     dynamoconsumer "github.com/harlow/kinesis-consumer/dynamostreams"
 )
 
-type Logger interface {
-    Log(v ...interface{})
-}
-```
-
-```go
 type yourLogger struct {
     *log.Logger
 }
