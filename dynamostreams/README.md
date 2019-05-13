@@ -8,7 +8,7 @@ The DynamoDBStreams consumer provides an interface for consuming records from a 
 Scan(ctx context.Context, arn string, seqNum string, fn func(*dynamodbstreams.Record), error) error
 ```
 
-## Example
+## Example
 
 ```go
 import (
